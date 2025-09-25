@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -6,19 +7,30 @@ import nodemailer from 'nodemailer';
 dotenv.config();
 const app = express();
 
-const ORIGIN = process.env.CORS_ORIGIN || '*';
-app.use(cors({ origin: ORIGIN }));
-app.use(express.json());
-// Loguea método y ruta de cada request
-app.use((req, res, next) => {
-  console.log(req.method, req.path);
-  next();
-});
-// Responde preflights OPTIONS con CORS
+
+const ORIGINS = (process.env.CORS_ORIGIN || '*')
+  .split(',')
+  .map(s => s.trim());
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || ORIGINS.includes('*') || ORIGINS.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET','POST','OPTIONS'],
+  allowedHeaders: ['Content-Type']
+}));
+
+// preflight para cualquier ruta
 app.options('*', cors());
 
-// Health check
-app.get('/', (req, res) => res.json({ ok: true, service: 'appsamedida-api' }));
+app.use(express.json());
+
+// (debug opcional)
+app.use((req,res,next)=>{ console.log(req.method, req.path); next(); });
+
+// healthcheck
+app.get('/', (req,res)=> res.json({ ok:true, service:'appsamedida-api' }));
 
 const createTransporter = () =>
   nodemailer.createTransport({
