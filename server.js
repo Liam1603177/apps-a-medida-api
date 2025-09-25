@@ -20,12 +20,17 @@ app.options('*', cors());
 // Health check
 app.get('/', (req, res) => res.json({ ok: true, service: 'appsamedida-api' }));
 
-const createTransporter = () => nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: Number(process.env.SMTP_PORT) === 465, // 465 = SSL (Gmail)
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-});
+const createTransporter = () =>
+  nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: Number(process.env.SMTP_PORT) === 465, // 465=SSL, 587=STARTTLS
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    connectionTimeout: 15000, // 15s
+    greetingTimeout: 10000,   // 10s
+    socketTimeout: 20000,     // 20s
+    tls: { minVersion: 'TLSv1.2' }
+  });
 
 app.post('/api/contact', async (req, res) => {
   try {
@@ -39,19 +44,16 @@ app.post('/api/contact', async (req, res) => {
     }
 
     const transporter = createTransporter();
-    // opcional, útil en dev:
     await transporter.verify();
-
     const FROM = process.env.FROM_EMAIL || process.env.SMTP_USER;
     const to = process.env.MAIL_TO || process.env.SMTP_USER;
-
-    const info = await transporter.sendMail({
-      from: `Apps a Medida <${FROM}>`,
+    const mailData = {
       to,
       subject: `Nueva consulta de ${nombre}`,
       replyTo: email,
       text: `Nombre: ${nombre}\nEmail: ${email}\nTeléfono: ${telefono || '-'}\n\nMensaje:\n${mensaje}`,
-    });
+    };
+    const info = await transporter.sendMail({ from: `Apps a Medida <${FROM}>`, ...mailData });
 
     return res.json({ ok: true, messageId: info.messageId });
   } catch (err) {
